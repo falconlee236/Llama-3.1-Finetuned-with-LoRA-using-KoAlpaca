@@ -1,12 +1,13 @@
 # https://jjaegii.tistory.com/35
-
+# https://wandb.ai/capecape/alpaca_ft/reports/How-to-Fine-tune-an-LLM-Part-3-The-HuggingFace-Trainer--Vmlldzo1OTEyNjMy
 import dotenv
 import os
+import wandb
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 import huggingface_hub
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_traning
-from trl import SFTTrainer, TrainingArguments
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from trl import SFTTrainer
 
 def format_example(row):
     return {
@@ -15,18 +16,25 @@ def format_example(row):
         You are a helpful assistant<|eot_id|>\n<|start_header_id|>user<|end_header_id|>
  
         {row['instruction']}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
- 
+ `
         {row['output']}<|eot_id|>"""
     }
 
 dotenv.load_dotenv()
 API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 REPO_NAME = os.getenv("HUGGINGFACE_REPO")
+WANDB_API_KEY = os.getenv("WANDB_API_KEY")
+os.environ["WANDB_PROJECT"] = "Llama-3.1-Finetuned-with-LoRA-using-KoAlpaca"  # name your W&B project
+os.environ["WANDB_LOG_MODEL"] = "checkpoint"  # log all model checkpoints
+
+wandb.login(key=WANDB_API_KEY)
+
 
 huggingface_hub.login(token=API_KEY)
 # https://huggingface.co/datasets/beomi/KoAlpaca-v1.1a
-ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train")
-dataset = ds.map(format_example)
+print(load_dataset("beomi/KoAlpaca-v1.1a"))
+train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train")
+train_dataset = train_ds.map(format_example)
 
 # https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
 base_model = "meta-llama/Llama-3.1-8B-Instruct"
@@ -55,26 +63,28 @@ peft_params = LoraConfig(
 )
 
 # 모델을 8bit 학습을 위한 상태로 준비. 메모리를 절약하면서도 모델의 성능을 유지할 수 있음
-model = prepare_model_for_kbit_traning(model, 8)
+model = prepare_model_for_kbit_training(model, 8)
 
 # PEFT 어댑터 설정을 모델에 적용
 model = get_peft_model(model, peft_params)
  
 # 학습 파라미터 설정
 training_params = TrainingArguments(
+    report_to="wandb",                   # enables logging to wandb
     output_dir="./results",              # 결과 저장 경로
     num_train_epochs=50,                 # 학습 에폭 수
     per_device_train_batch_size=8,       # 배치 사이즈
     learning_rate=2e-4,                  # 학습률 설정
     save_steps=1000,                     # 저장 빈도
     logging_steps=50,                    # 로그 출력 빈도
-    fp16=True                            # 16-bit 부동 소수점 사용 (메모리 절약)
+    fp16=True,                            # 16-bit 부동 소수점 사용 (메모리 절약)
+    gradient_accumulation_steps=2, # simulate larger batch sizes
 )
  
 # SFTTrainer를 사용해 학습 실행
 trainer = SFTTrainer(
     model=model,
-    train_dataset=dataset,
+    train_dataset=train_dataset,
     peft_config=peft_params,
     dataset_text_field="text",
     max_seq_length=None,  # 시퀀스 길이 제한
