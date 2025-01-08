@@ -4,10 +4,11 @@ import dotenv
 import os
 import wandb
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 import huggingface_hub
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from trl import SFTTrainer
+import torch
 
 def format_example(row):
     return {
@@ -29,18 +30,20 @@ os.environ["WANDB_LOG_MODEL"] = "checkpoint"  # log all model checkpoints
 
 wandb.login(key=WANDB_API_KEY)
 
-
 huggingface_hub.login(token=API_KEY)
 # https://huggingface.co/datasets/beomi/KoAlpaca-v1.1a
 print(load_dataset("beomi/KoAlpaca-v1.1a"))
-train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train")
+train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train[:5%]") #10%했더니 OOM 나옴
 train_dataset = train_ds.map(format_example)
 
 # https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
 base_model = "meta-llama/Llama-3.1-8B-Instruct"
+quantization_config = BitsAndBytesConfig(load_in_8bit=True,
+                                         llm_int8_threshold=200.0)
 model = AutoModelForCausalLM.from_pretrained(
     base_model,
-    load_in_8bit=True, # 8bit quantization
+    torch_dtype=torch.float16,
+    quantization_config=quantization_config,
     device_map="auto"
 )
 
@@ -72,13 +75,14 @@ model = get_peft_model(model, peft_params)
 training_params = TrainingArguments(
     report_to="wandb",                   # enables logging to wandb
     output_dir="./results",              # 결과 저장 경로
-    num_train_epochs=50,                 # 학습 에폭 수
+    num_train_epochs=1,                 # 학습 에폭 수, 2만개 전부 해서 기존 50번 하면 172시간 걸림 A40 기준
     per_device_train_batch_size=8,       # 배치 사이즈
     learning_rate=2e-4,                  # 학습률 설정
     save_steps=1000,                     # 저장 빈도
     logging_steps=50,                    # 로그 출력 빈도
     fp16=True,                            # 16-bit 부동 소수점 사용 (메모리 절약)
-    gradient_accumulation_steps=2, # simulate larger batch sizes
+    gradient_accumulation_steps=2,
+    lr_scheduler_type="cosine",
 )
  
 # SFTTrainer를 사용해 학습 실행
@@ -86,8 +90,8 @@ trainer = SFTTrainer(
     model=model,
     train_dataset=train_dataset,
     peft_config=peft_params,
-    dataset_text_field="text",
-    max_seq_length=None,  # 시퀀스 길이 제한
+    #dataset_text_field="text",
+    #max_seq_length=None,  # 시퀀스 길이 제한
     tokenizer=tokenizer,
     args=training_params,
 )
