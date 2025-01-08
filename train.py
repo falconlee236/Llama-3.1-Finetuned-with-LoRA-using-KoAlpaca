@@ -33,7 +33,7 @@ wandb.login(key=WANDB_API_KEY)
 huggingface_hub.login(token=API_KEY)
 # https://huggingface.co/datasets/beomi/KoAlpaca-v1.1a
 print(load_dataset("beomi/KoAlpaca-v1.1a"))
-train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train[:5%]") #10%했더니 OOM 나옴
+train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train[:5%]") #10%했더니 OOM 나옴, 1epoch 16분
 train_dataset = train_ds.map(format_example)
 
 # https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
@@ -75,7 +75,7 @@ model = get_peft_model(model, peft_params)
 training_params = TrainingArguments(
     report_to="wandb",                   # enables logging to wandb
     output_dir="./results",              # 결과 저장 경로
-    num_train_epochs=1,                 # 학습 에폭 수, 2만개 전부 해서 기존 50번 하면 172시간 걸림 A40 기준
+    num_train_epochs=5,                 # 학습 에폭 수, 2만개 전부 해서 기존 50번 하면 172시간 걸림 A40 기준
     per_device_train_batch_size=8,       # 배치 사이즈
     learning_rate=2e-4,                  # 학습률 설정
     save_steps=1000,                     # 저장 빈도
