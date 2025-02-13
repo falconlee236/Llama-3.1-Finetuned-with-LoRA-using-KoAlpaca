@@ -32,9 +32,15 @@ wandb.login(key=WANDB_API_KEY)
 
 huggingface_hub.login(token=API_KEY)
 # https://huggingface.co/datasets/beomi/KoAlpaca-v1.1a
-print(load_dataset("beomi/KoAlpaca-v1.1a"))
-train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train[:5%]") #10%했더니 OOM 나옴
+print("loading dataset start")
+# train_ds = load_dataset("beomi/KoAlpaca-v1.1a", split="train[:5%]") #10%했더니 OOM 나옴
+train_ds = load_dataset(
+    path="beomi/KoAlpaca-v1.1a",
+    num_proc=8,
+    split="train",
+)
 train_dataset = train_ds.map(format_example)
+print("loading dataset finished")
 
 # https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
 base_model = "meta-llama/Llama-3.1-8B-Instruct"
@@ -75,13 +81,14 @@ model = get_peft_model(model, peft_params)
 training_params = TrainingArguments(
     report_to="wandb",                   # enables logging to wandb
     output_dir="./results",              # 결과 저장 경로
-    num_train_epochs=1,                 # 학습 에폭 수, 2만개 전부 해서 기존 50번 하면 172시간 걸림 A40 기준
-    per_device_train_batch_size=8,       # 배치 사이즈
+    num_train_epochs=5,                 # 학습 에폭 수, 2만개 전부 해서 기존 50번 하면 172시간 걸림 A40 기준
+    per_device_train_batch_size=1,       # 배치 사이즈 -> fp16을 쓰기 때문에 8의 배수로 설정하기
+    gradient_accumulation_steps=16,      # 나는 배치 크기를 16으로 하고 싶어요
+    gradient_checkpointing=True,
     learning_rate=2e-4,                  # 학습률 설정
     save_steps=1000,                     # 저장 빈도
     logging_steps=50,                    # 로그 출력 빈도
     fp16=True,                            # 16-bit 부동 소수점 사용 (메모리 절약)
-    gradient_accumulation_steps=2,
     lr_scheduler_type="cosine",
 )
  
@@ -90,12 +97,9 @@ trainer = SFTTrainer(
     model=model,
     train_dataset=train_dataset,
     peft_config=peft_params,
-    #dataset_text_field="text",
-    #max_seq_length=None,  # 시퀀스 길이 제한
-    tokenizer=tokenizer,
+    processing_class=tokenizer,
     args=training_params,
 )
- 
 trainer.train()
 
 
