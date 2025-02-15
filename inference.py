@@ -9,7 +9,12 @@ REPO_NAME = os.getenv("HUGGINGFACE_REPO")
 
 huggingface_hub.login(token=os.getenv("HUGGINGFACE_API_KEY"))
 
-pipe = pipeline(task="text-generation", model=REPO_NAME, tokenizer=REPO_NAME, max_length=256)
+pipe = pipeline(
+    task="text-generation",
+    model=REPO_NAME,
+    tokenizer=REPO_NAME,
+    max_length=256
+)
  
 def generate_and_stop(prompt):
     result = pipe(f"{prompt}")[0]['generated_text']
