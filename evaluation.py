@@ -78,8 +78,12 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             question=eval_model_input,
             answer=eval_model_output,
         )
+
+        messages = [
+            {"role": "user", "content": test_model_prompt},
+        ]
         input_ids = tokenizer.apply_chat_template(
-            test_model_prompt,
+            messages,
             return_tensors="pt",
         ).to("cuda")
 
