@@ -2,6 +2,7 @@ from transformers import pipeline
 import dotenv
 import os
 import huggingface_hub
+import torch
 
 dotenv.load_dotenv()
 API_KEY = os.getenv("HUGGINGFACE_API_KEY")
@@ -14,9 +15,10 @@ pipeline = pipeline(
     model=REPO_NAME,
     tokenizer=REPO_NAME,
     max_length=256,
+    torch_dtype=torch.bfloat16,
     device_map="auto",
     truncation=True,
-    model_kwargs={"load_in_8bit": True},
+    # model_kwargs={"load_in_8bit": True},
 )
  
 def generate_and_stop(prompt):
@@ -31,3 +33,5 @@ You are a helpful assistant<|eot_id|>\n<|start_header_id|>user<|end_header_id|>
 """
  
 print(generate_and_stop(prompt))
+print("---")
+print(pipeline(prompt))
