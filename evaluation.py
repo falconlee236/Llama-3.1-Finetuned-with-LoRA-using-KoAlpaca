@@ -1,6 +1,7 @@
 import os
 import re
 import dotenv
+import pandas as pd
 from transformers import pipeline, Pipeline
 from huggingface_hub import login
 from datasets import load_dataset, Dataset
@@ -80,7 +81,28 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
 
     results = list(tqdm(dataset.map(process_example), total=len(dataset))) 
     return results
- 
+
+def calculate_average_judge_score(results):
+    """
+    judge_score의 평균을 계산하는 함수
+    results: generate_and_stop()의 결과 리스트
+    """
+    scores = [item["judge_score"] for item in results]
+    avg_score = sum(scores) / len(scores) if scores else 0
+    print(f"Average Judge Score: {avg_score:.4f}")
+    return avg_score
+
+def save_results_to_csv(results, filename="judge_scores.csv"):
+    """
+    결과 리스트를 CSV 파일로 저장하는 함수
+    results: generate_and_stop()의 결과 리스트
+    filename: 저장할 CSV 파일명 (기본값: judge_scores.csv)
+    """
+    df = pd.DataFrame(results)  # 리스트를 DataFrame으로 변환
+    df.to_csv(filename, index=False, encoding="utf-8")  # CSV로 저장
+    print(f"✅ CSV 파일 저장 완료: {filename}")
+
+
 
 if __name__ == "__main__":
     login(token=os.getenv("HUGGINGFACE_API_KEY"))    
@@ -91,6 +113,7 @@ if __name__ == "__main__":
         tokenizer=REPO_NAME,
         max_length=256,
         device_map="auto",
+        truncation=True,
         model_kwargs={"load_in_8bit": True},
     )
 
@@ -107,5 +130,5 @@ if __name__ == "__main__":
     )
 
     print(len(ans))
-    for x in ans:
-        print(x)
+    calculate_average_judge_score(ans)
+    save_results_to_csv(ans)
