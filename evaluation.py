@@ -2,7 +2,7 @@ import os
 import re
 import dotenv
 from transformers import pipeline, Pipeline, AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import login, InferenceClient
+from huggingface_hub import login
 from datasets import load_dataset
 import torch
 
@@ -12,7 +12,7 @@ import torch
 dotenv.load_dotenv()
 API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 REPO_NAME = os.getenv("HUGGINGFACE_REPO")
-JUDGE_MODEL_ID = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+JUDGE_MODEL_ID = "mistralai/Ministral-8B-Instruct-2410"
 JUDGE_PROMPT = """
 사용자 질문(user_question)과 시스템 답변(system_answer) 쌍이 주어질 것입니다. 귀하의 임무는 시스템 답변이 사용자 질문에서 표현된 사용자의 관심사를 얼마나 잘 답변했는지 '종합 평가'를 제공하는 것입니다. 
 
@@ -82,7 +82,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             test_model_prompt,
             return_tensors="pt",
         ).to("cuda")
-        
+
         outputs = llm_client.generate(input_ids, max_new_tokens=20)
         llm_answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
     
