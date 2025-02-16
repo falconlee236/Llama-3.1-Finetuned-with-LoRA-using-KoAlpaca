@@ -7,6 +7,7 @@ from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from google import genai
 from tqdm import tqdm
+import torch
 
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
@@ -152,6 +153,10 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
         )
         llm_answer = response.text
 
+        print(f"instruction_output = {example['instruction']}")
+        print(f"eval_model_output = {eval_model_output}")
+        print(f"llm_answer = {llm_answer}")
+
         return {
             **example,
             "judge_score": extract_judge_score(answer=llm_answer),
@@ -189,10 +194,9 @@ if __name__ == "__main__":
         task="text-generation",
         model=REPO_NAME,
         tokenizer=REPO_NAME,
-        max_length=256,
         device_map="auto",
-        truncation=True,
-        model_kwargs={"load_in_8bit": True},
+        torch_dtype=torch.bfloat16,
+        # model_kwargs={"load_in_8bit": True},
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
