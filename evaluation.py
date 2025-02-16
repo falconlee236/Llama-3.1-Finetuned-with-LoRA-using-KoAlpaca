@@ -195,6 +195,8 @@ if __name__ == "__main__":
         model=REPO_NAME,
         tokenizer=REPO_NAME,
         device_map="auto",
+        max_length=1024,
+        truncation=True,
         torch_dtype=torch.bfloat16,
         # model_kwargs={"load_in_8bit": True},
     )
