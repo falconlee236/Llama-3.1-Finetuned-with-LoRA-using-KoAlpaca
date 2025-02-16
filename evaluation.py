@@ -19,12 +19,12 @@ REPO_NAME = os.getenv("HUGGINGFACE_REPO")
 JUDGE_PROMPT = """
 You will be given a user_question and system_answer couple.
 Your task is to provide a 'total rating' scoring how well the system_answer answers the user concerns expressed in the user_question.
-Give your answer as a float on a scale of 0 to 10, where 0 means that the system_answer is not helpful at all, and 10 means that the answer completely and helpfully addresses the question.
+Give your answer as a float on a scale of 0 to 100, where 0 means that the system_answer is not helpful at all, and 100 means that the answer completely and helpfully addresses the question.
 
 Provide your feedback as follows:
 
 Feedback:::
-Total rating: (your rating, as a float between 0 and 10)
+Total rating: (your rating, as a float between 0 and 100)
 
 Now here are the question and answer.
 
@@ -189,17 +189,26 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
 
 if __name__ == "__main__":
     login(token=os.getenv("HUGGINGFACE_API_KEY"))
-    tokenizer = AutoTokenizer.from_pretrained(REPO_NAME)
     model = AutoModelForCausalLM.from_pretrained(
         REPO_NAME,
         torch_dtype=torch.bfloat16,
         attn_implementation="flash_attention_2"
-    )
+    ).to('cuda')
 
+    # pipeline = pipeline(
+    #     task="text-generation",
+    #     model=REPO_NAME,
+    #     tokenizer=REPO_NAME,
+    #     device_map="auto",
+    #     max_length=512,
+    #     truncation=True,
+    #     torch_dtype=torch.bfloat16,
+    #     # model_kwargs={"load_in_8bit": True},
+    # )
     pipeline = pipeline(
         task="text-generation",
         model=model,
-        tokenizer=tokenizer,
+        tokenizer=REPO_NAME,
         device_map="auto",
         max_length=512,
         truncation=True,
