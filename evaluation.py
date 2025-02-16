@@ -120,7 +120,7 @@ if __name__ == "__main__":
         device_map="auto",
         truncation=True,
         torch_dtype=torch.bfloat16,
-        # model_kwargs={"load_in_8bit": True},
+        model_kwargs={"load_in_8bit": True},
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
