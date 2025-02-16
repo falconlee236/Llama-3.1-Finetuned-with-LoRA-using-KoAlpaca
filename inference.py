@@ -20,7 +20,7 @@ pipeline = pipeline(
 )
  
 def generate_and_stop(prompt):
-    result = pipe(f"{prompt}")[0]['generated_text']
+    result = pipeline(f"{prompt}")[0]['generated_text']
     return result
  
 prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
