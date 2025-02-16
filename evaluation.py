@@ -54,7 +54,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
     results = []
-    llm_client = genai.Client(api_key='GEMINI_API_KEY')
+    llm_client = genai.Client(api_key=GEMINI_API_KEY)
 
     for instruction_dict in instructions:
         eval_model_input = instruction_dict["instruction"]
