@@ -1,37 +1,35 @@
 import os
 import re
 import dotenv
-from transformers import pipeline, Pipeline, AutoModelForCausalLM, AutoTokenizer
+from transformers import pipeline, Pipeline
 from huggingface_hub import login
 from datasets import load_dataset
-import torch
+from google import genai
 
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
 # https://huggingface.co/learn/cookbook/llm_judge
 dotenv.load_dotenv()
 API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 REPO_NAME = os.getenv("HUGGINGFACE_REPO")
-JUDGE_MODEL_ID = "mistralai/Ministral-8B-Instruct-2410"
 JUDGE_PROMPT = """
-사용자 질문(user_question)과 시스템 답변(system_answer) 쌍이 주어질 것입니다. 귀하의 임무는 시스템 답변이 사용자 질문에서 표현된 사용자의 관심사를 얼마나 잘 답변했는지 '종합 평가'를 제공하는 것입니다. 
+You will be given a user_question and system_answer couple.
+Your task is to provide a 'total rating' scoring how well the system_answer answers the user concerns expressed in the user_question.
+Give your answer as a float on a scale of 0 to 10, where 0 means that the system_answer is not helpful at all, and 10 means that the answer completely and helpfully addresses the question.
 
-0부터 10까지의 척도로 float 형식의 점수를 제시해 주십시오. 
-- 0점은 시스템 답변이 전혀 도움이 되지 않음을 의미합니다
-- 10점은 답변이 질문을 완벽하고 유용하게 다루었음을 의미합니다
+Provide your feedback as follows:
 
-다음 형식으로 피드백을 제공해 주십시오:
+Feedback:::
+Total rating: (your rating, as a float between 0 and 10)
 
-피드백:::
-종합 평가: (0에서 10 사이의 float 형식 점수)
+Now here are the question and answer.
 
-이제 질문과 답변입니다.
+Question: {question}
+Answer: {answer}
 
-질문: {question}
-답변: {answer}
-
-피드백:::
-종합 평가:
+Feedback:::
+Total rating: 
 """
 
 def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
@@ -56,16 +54,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
     results = []
-    llm_client = AutoModelForCausalLM.from_pretrained(
-        JUDGE_MODEL_ID,
-        load_in_4bit=True,
-        device_map="auto"
-    )
-    # llm_client = InferenceClient(
-    #     model=JUDGE_MODEL_ID,
-    #     timeout=120,
-    # )
-    tokenizer = AutoTokenizer.from_pretrained(JUDGE_MODEL_ID)
+    llm_client = genai.Client(api_key='GEMINI_API_KEY')
 
     for instruction_dict in instructions:
         eval_model_input = instruction_dict["instruction"]
@@ -79,16 +68,10 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             answer=eval_model_output,
         )
 
-        messages = [
-            {"role": "user", "content": test_model_prompt},
-        ]
-        input_ids = tokenizer.apply_chat_template(
-            messages,
-            return_tensors="pt",
-        ).to("cuda")
-
-        outputs = llm_client.generate(input_ids, max_new_tokens=20)
-        llm_answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        response = llm_client.models.generate_content(
+            model='gemini-2.0-flash', contents=test_model_prompt
+        )
+        llm_answer = response.text
     
         results.append({
             **instruction_dict,
