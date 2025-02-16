@@ -161,8 +161,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             "judge_score": extract_judge_score(answer=llm_answer),
         }
 
-    process_example_params = partial(process_example, pipe=pipeline, llm_client=llm_client)
-    results = list(tqdm(dataset.map(process_example_params), total=len(dataset))) 
+    results = list(tqdm(dataset.map(lambda x: process_example(x, pipe, llm_client)), total=len(dataset))) 
     return results
 
 def calculate_average_judge_score(results):
