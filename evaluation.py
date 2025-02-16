@@ -2,13 +2,12 @@ import os
 import re
 import dotenv
 import pandas as pd
-from transformers import pipeline, Pipeline, AutoModelForCausalLM, AutoTokenizer
+from transformers import pipeline
 from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from google import genai
 from tqdm import tqdm
 import torch
-from functools import partial
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
 # https://huggingface.co/learn/cookbook/llm_judge
@@ -34,6 +33,20 @@ Answer: {answer}
 Feedback:::
 Total rating: 
 """
+
+login(token=os.getenv("HUGGINGFACE_API_KEY"))
+llm_client = genai.Client(api_key=GEMINI_API_KEY)
+pipeline = pipeline(
+    task="text-generation",
+    model=REPO_NAME,
+    tokenizer=REPO_NAME,
+    device_map="auto",
+    max_length=512,
+    truncation=True,
+    torch_dtype=torch.bfloat16,
+    # model_kwargs={"load_in_8bit": True},
+)
+
 
 def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
     """
@@ -84,7 +97,7 @@ def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
         print(e)
         return 0
 
-def process_example(example, pipe, llm_client):
+def process_example(example):
     prompt_template = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
     
@@ -93,7 +106,7 @@ def process_example(example, pipe, llm_client):
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
     split_str = "<|start_header_id|>assistant<|end_header_id|>"
-    eval_model_output = pipe(
+    eval_model_output = pipeline(
         prompt_template.format(question=example["instruction"])
     )[0]['generated_text'].split(split_str)[1].strip()
         
@@ -117,17 +130,11 @@ def process_example(example, pipe, llm_client):
     }
 
 
-def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
-    llm_client = genai.Client(api_key=GEMINI_API_KEY)
+def generate_and_stop(instructions: list) -> list:
+    
     dataset = Dataset.from_list(instructions)
 
-    results = list(tqdm(
-        dataset.map(
-            process_example,
-            fn_kwargs={'pipe': pipe, 'llm_client': llm_client}
-        ),
-        total=len(dataset)
-    ))
+    results = list(tqdm(dataset.map(process_example),total=len(dataset)))
     return results
 
 def calculate_average_judge_score(results):
@@ -153,19 +160,6 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
 # pip install flash-attn --no-build-isolation
 
 if __name__ == "__main__":
-    login(token=os.getenv("HUGGINGFACE_API_KEY"))
-
-    pipeline = pipeline(
-        task="text-generation",
-        model=REPO_NAME,
-        tokenizer=REPO_NAME,
-        device_map="auto",
-        max_length=256,
-        truncation=True,
-        torch_dtype=torch.bfloat16,
-        # model_kwargs={"load_in_8bit": True},
-    )
-
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
     human_datasets = [
     dict(uuid=item["uuid"],
@@ -173,10 +167,7 @@ if __name__ == "__main__":
         response=item["response"],
     ) for item in hub_datasets["test"]]
 
-    ans = generate_and_stop(
-        pipe=pipeline,
-        instructions=human_datasets,
-    )
+    ans = generate_and_stop(instructions=human_datasets)
 
     print(len(ans))
     calculate_average_judge_score(ans)
