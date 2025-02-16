@@ -56,14 +56,14 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
-    results = []
+    split_str = "<|start_header_id|>assistant<|end_header_id|>"
     llm_client = genai.Client(api_key=GEMINI_API_KEY)
     dataset = Dataset.from_list(instructions)
 
     def process_example(example):
         eval_model_output = pipe(
             prompt_template.format(question=example["instruction"])
-        )[0]['generated_text']
+        )[0]['generated_text'].split(split_str)[1].strip()
         
         test_model_prompt = JUDGE_PROMPT.format(
             question=example["instruction"],
