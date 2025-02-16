@@ -22,7 +22,8 @@ pipeline = pipeline(
 )
  
 def generate_and_stop(prompt):
-    result = pipeline(f"{prompt}")[0]['generated_text']
+    split_str = "<|start_header_id|>assistant<|end_header_id|>"
+    result = pipeline(f"{prompt}")[0]['generated_text'].split(split_str)[1].strip()
     return result
  
 prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -33,5 +34,3 @@ You are a helpful assistant<|eot_id|>\n<|start_header_id|>user<|end_header_id|>
 """
  
 print(generate_and_stop(prompt))
-print("---")
-print(pipeline(prompt))
