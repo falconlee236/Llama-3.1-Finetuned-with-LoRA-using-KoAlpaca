@@ -8,7 +8,7 @@ from datasets import load_dataset, Dataset
 from google import genai
 from tqdm import tqdm
 import torch
-
+from functools import partial
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
 # https://huggingface.co/learn/cookbook/llm_judge
@@ -19,12 +19,12 @@ REPO_NAME = os.getenv("HUGGINGFACE_REPO")
 JUDGE_PROMPT = """
 You will be given a user_question and system_answer couple.
 Your task is to provide a 'total rating' scoring how well the system_answer answers the user concerns expressed in the user_question.
-Give your answer as a float on a scale of 0 to 100, where 0 means that the system_answer is not helpful at all, and 100 means that the answer completely and helpfully addresses the question.
+Give your answer as a float on a scale of 0 to 10, where 0 means that the system_answer is not helpful at all, and 10 means that the answer completely and helpfully addresses the question.
 
 Provide your feedback as follows:
 
 Feedback:::
-Total rating: (your rating, as a float between 0 and 100)
+Total rating: (your rating, as a float between 0 and 10)
 
 Now here are the question and answer.
 
@@ -134,11 +134,10 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
     split_str = "<|start_header_id|>assistant<|end_header_id|>"
-    results = []
     llm_client = genai.Client(api_key=GEMINI_API_KEY)
     dataset = Dataset.from_list(instructions)
 
-    def process_example(example):
+    def process_example(pipe, llm_client, example):
         eval_model_output = pipe(
             prompt_template.format(question=example["instruction"])
         )[0]['generated_text'].split(split_str)[1].strip()
@@ -162,7 +161,8 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             "judge_score": extract_judge_score(answer=llm_answer),
         }
 
-    results = list(tqdm(dataset.map(process_example), total=len(dataset))) 
+    process_example_params = partial(process_example, pipe=pipeline, llm_client=llm_client)
+    results = list(tqdm(dataset.map(process_example_params), total=len(dataset))) 
     return results
 
 def calculate_average_judge_score(results):
@@ -189,12 +189,13 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
 
 if __name__ == "__main__":
     login(token=os.getenv("HUGGINGFACE_API_KEY"))
+
     pipeline = pipeline(
         task="text-generation",
         model=REPO_NAME,
         tokenizer=REPO_NAME,
         device_map="auto",
-        max_length=512,
+        max_length=256,
         truncation=True,
         torch_dtype=torch.bfloat16,
         # model_kwargs={"load_in_8bit": True},
