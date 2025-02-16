@@ -2,7 +2,7 @@ import os
 import re
 import dotenv
 import pandas as pd
-from transformers import pipeline, Pipeline
+from transformers import pipeline, Pipeline, AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from google import genai
@@ -185,17 +185,23 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
     df.to_csv(filename, index=False, encoding="utf-8")  # CSV로 저장
     print(f"✅ CSV 파일 저장 완료: {filename}")
 
-
+# pip install flash-attn --no-build-isolation
 
 if __name__ == "__main__":
-    login(token=os.getenv("HUGGINGFACE_API_KEY"))    
+    login(token=os.getenv("HUGGINGFACE_API_KEY"))
+    tokenizer = AutoTokenizer.from_pretrained(REPO_NAME)
+    model = AutoModelForCausalLM.from_pretrained(
+        REPO_NAME,
+        torch_dtype=torch.bfloat16,
+        attn_implementation="flash_attention_2"
+    )
 
     pipeline = pipeline(
         task="text-generation",
-        model=REPO_NAME,
-        tokenizer=REPO_NAME,
+        model=model,
+        tokenizer=tokenizer,
         device_map="auto",
-        max_length=1024,
+        max_length=512,
         truncation=True,
         torch_dtype=torch.bfloat16,
         # model_kwargs={"load_in_8bit": True},
