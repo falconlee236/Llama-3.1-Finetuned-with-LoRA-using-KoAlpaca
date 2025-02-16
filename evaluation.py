@@ -193,9 +193,8 @@ if __name__ == "__main__":
         REPO_NAME,
         torch_dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
-        device_map="auto",
+        device_map="auto", # GPU 메모리가 부족할 경우, 일부 레이어를 CPU나 디스크로 오프로드합니다
     )
-    model.to('cuda')
 
     # pipeline = pipeline(
     #     task="text-generation",
