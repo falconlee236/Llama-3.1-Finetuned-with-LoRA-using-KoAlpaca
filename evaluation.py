@@ -35,6 +35,43 @@ Total rating:
 """
 
 def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
+    """
+    Extracts a numerical score from a text response containing a rating.
+    
+    This function attempts to parse a numerical score from a text response,
+    specifically looking for the first number after a split string (default "Total rating:").
+    If the split string is not found, it searches for numbers in the entire text.
+    
+    Args:
+        answer (str): The text response containing the rating or score.
+            Expected to contain numerical values that can be parsed as float.
+        split_str (str, optional): The string to split the answer text on.
+            Defaults to "Total rating:". The function looks for numbers
+            after this string.
+    
+    Returns:
+        float: The extracted numerical score.
+            - Returns the first number found after the split string
+            - Returns 0 if no valid number can be extracted or if an error occurs
+    
+    Example:
+        >>> text = "The quality is good. Total rating: 8.5 out of 10"
+        >>> score = extract_judge_score(text)
+        >>> print(score)  # Output: 8.5
+        
+        >>> text = "Score is 7"
+        >>> score = extract_judge_score(text, split_str="Score is")
+        >>> print(score)  # Output: 7.0
+    
+    Notes:
+        - Uses regex pattern r"\d+(?:\.\d+)?" to match both integer and decimal numbers
+        - Silently returns 0 on any error (invalid format, no numbers found, etc.)
+        - Prints the exception message to stdout when an error occurs
+    
+    Dependencies:
+        - re (regular expressions module)
+    """
+    
     try:
         if split_str in answer:
             rating = answer.split(split_str)[1]
@@ -48,6 +85,46 @@ def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
 
 
 def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
+    """
+    Generates model responses for a list of instructions and evaluates them using a judge model.
+    
+    This function processes a list of instructions through a pipeline, generates responses,
+    and then evaluates those responses using the Gemini model as a judge. It uses a specific
+    prompt template for generation and combines the results with judge scores.
+    
+    Args:
+        pipe (Pipeline): A pipeline object capable of processing text prompts and generating
+            responses. Expected to return a list of dictionaries with 'generated_text' key.
+        instructions (list): A list of dictionaries containing instruction data. Each dictionary
+            should have an 'instruction' key with the text prompt to be processed.
+    
+    Returns:
+        list: A list of dictionaries containing the original instruction data enriched with
+            judge scores. Each dictionary contains:
+            - Original instruction data
+            - 'judge_score': A score extracted from the Gemini model's evaluation
+    
+    Example:
+        >>> pipe = create_pipeline()
+        >>> instructions = [
+        ...     {"instruction": "Write a story about a cat"},
+        ...     {"instruction": "Explain quantum physics"}
+        ... ]
+        >>> results = generate_and_stop(pipe, instructions)
+        >>> print(results[0]['judge_score'])
+    
+    Notes:
+        - Requires a valid GEMINI_API_KEY to be set in the environment
+        - Uses the 'gemini-2.0-flash' model for evaluation
+        - Processes instructions sequentially with progress tracking via tqdm
+        - The judge evaluation uses a predefined JUDGE_PROMPT template
+    
+    Dependencies:
+        - genai
+        - datasets
+        - tqdm
+    """
+
     prompt_template = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
     
@@ -55,6 +132,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
+    split_str = "<|start_header_id|>assistant<|end_header_id|>"
     results = []
     llm_client = genai.Client(api_key=GEMINI_API_KEY)
     dataset = Dataset.from_list(instructions)
@@ -62,7 +140,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     def process_example(example):
         eval_model_output = pipe(
             prompt_template.format(question=example["instruction"])
-        )[0]['generated_text']
+        )[0]['generated_text'].split(split_str)[1].strip()
         
         test_model_prompt = JUDGE_PROMPT.format(
             question=example["instruction"],
