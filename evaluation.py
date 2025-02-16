@@ -57,9 +57,9 @@ def generate_and_stop(pipe:Pipeline, instructions: list, llm: InferenceClient) -
     for instruction_dict in instructions:
         eval_model_input = instruction_dict["instruction"]
 
-        eval_model_output = pipe(f"{prompt.format(
+        eval_model_output = pipe(prompt.format(
             question=eval_model_input,
-        )}")[0]['generated_text']
+        ))[0]['generated_text']
 
         test_model_prompt = JUDGE_PROMPT.format(
             question=eval_model_input,
