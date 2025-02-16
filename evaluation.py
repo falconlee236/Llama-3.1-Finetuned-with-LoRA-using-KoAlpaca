@@ -189,26 +189,9 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
 
 if __name__ == "__main__":
     login(token=os.getenv("HUGGINGFACE_API_KEY"))
-    model = AutoModelForCausalLM.from_pretrained(
-        REPO_NAME,
-        torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2",
-        device_map="auto", # GPU 메모리가 부족할 경우, 일부 레이어를 CPU나 디스크로 오프로드합니다
-    )
-
-    # pipeline = pipeline(
-    #     task="text-generation",
-    #     model=REPO_NAME,
-    #     tokenizer=REPO_NAME,
-    #     device_map="auto",
-    #     max_length=512,
-    #     truncation=True,
-    #     torch_dtype=torch.bfloat16,
-    #     # model_kwargs={"load_in_8bit": True},
-    # )
     pipeline = pipeline(
         task="text-generation",
-        model=model,
+        model=REPO_NAME,
         tokenizer=REPO_NAME,
         device_map="auto",
         max_length=512,
