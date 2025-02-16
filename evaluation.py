@@ -192,8 +192,10 @@ if __name__ == "__main__":
     model = AutoModelForCausalLM.from_pretrained(
         REPO_NAME,
         torch_dtype=torch.bfloat16,
-        attn_implementation="flash_attention_2"
-    ).to('cuda')
+        attn_implementation="flash_attention_2",
+        device_map="auto",
+    )
+    model.to('cuda')
 
     # pipeline = pipeline(
     #     task="text-generation",
