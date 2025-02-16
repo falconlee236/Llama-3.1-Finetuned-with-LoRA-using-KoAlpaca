@@ -74,6 +74,10 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
         )
         llm_answer = response.text
 
+        print(f"instruction_output = {example['instruction']}")
+        print(f"eval_model_output = {eval_model_output}")
+        print(f"llm_answer = {llm_answer}")
+
         return {
             **example,
             "judge_score": extract_judge_score(answer=llm_answer),
@@ -111,10 +115,10 @@ if __name__ == "__main__":
         task="text-generation",
         model=REPO_NAME,
         tokenizer=REPO_NAME,
-        max_length=256,
+        max_length=512,
         device_map="auto",
         truncation=True,
-        model_kwargs={"load_in_8bit": True},
+        # model_kwargs={"load_in_8bit": True},
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
