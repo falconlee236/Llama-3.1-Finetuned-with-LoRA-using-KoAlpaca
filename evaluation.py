@@ -2,7 +2,7 @@ import os
 import re
 import dotenv
 import pandas as pd
-from transformers import pipeline, Pipeline
+from transformers import pipeline, Pipeline, BitsAndBytesConfig
 from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from google import genai
@@ -112,6 +112,8 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
 if __name__ == "__main__":
     login(token=os.getenv("HUGGINGFACE_API_KEY"))    
 
+    quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+
     pipeline = pipeline(
         task="text-generation",
         model=REPO_NAME,
@@ -119,8 +121,7 @@ if __name__ == "__main__":
         max_length=512,
         device_map="auto",
         truncation=True,
-        torch_dtype=torch.bfloat16,
-        model_kwargs={"load_in_8bit": True},
+        model_kwargs={"quantization_config": quantization_config}
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
