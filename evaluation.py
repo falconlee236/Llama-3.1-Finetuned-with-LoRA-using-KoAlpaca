@@ -121,7 +121,13 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     llm_client = genai.Client(api_key=GEMINI_API_KEY)
     dataset = Dataset.from_list(instructions)
 
-    results = list(tqdm(dataset.map(lambda x: process_example(x, pipe, llm_client)), total=len(dataset))) 
+    results = list(tqdm(
+        dataset.map(
+            process_example,
+            fn_kwargs={'pipe': pipe, 'llm_client': llm_client}
+        ),
+        total=len(dataset)
+    ))
     return results
 
 def calculate_average_judge_score(results):
