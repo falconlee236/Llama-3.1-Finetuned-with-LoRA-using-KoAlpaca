@@ -7,6 +7,7 @@ from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from google import genai
 from tqdm import tqdm
+import torch
 
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
@@ -118,6 +119,7 @@ if __name__ == "__main__":
         max_length=512,
         device_map="auto",
         truncation=True,
+        torch_dtype=torch.bfloat16,
         # model_kwargs={"load_in_8bit": True},
     )
 
