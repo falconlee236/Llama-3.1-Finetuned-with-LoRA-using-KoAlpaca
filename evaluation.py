@@ -75,9 +75,9 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
         )
         llm_answer = response.text
 
-        print(f"instruction_output = {example['instruction']}")
-        print(f"eval_model_output = {eval_model_output}")
-        print(f"llm_answer = {llm_answer}")
+        # print(f"instruction_output = {example['instruction']}")
+        # print(f"eval_model_output = {eval_model_output}")
+        # print(f"llm_answer = {llm_answer}")
 
         return {
             **example,
