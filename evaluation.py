@@ -3,8 +3,9 @@ import re
 import dotenv
 from transformers import pipeline, Pipeline
 from huggingface_hub import login
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from google import genai
+from tqdm import tqdm
 
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
@@ -46,7 +47,7 @@ def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
 
 
 def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
-    prompt = """
+    prompt_template = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
     
     You are a helpful assistant<|eot_id|>\n<|start_header_id|>user<|end_header_id|>
@@ -55,16 +56,15 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     """
     results = []
     llm_client = genai.Client(api_key=GEMINI_API_KEY)
+    dataset = Dataset.from_list(instructions)
 
-    for instruction_dict in instructions:
-        eval_model_input = instruction_dict["instruction"]
-
-        eval_model_output = pipe(prompt.format(
-            question=eval_model_input,
-        ))[0]['generated_text']
-
+    def process_example(example):
+        eval_model_output = pipe(
+            prompt_template.format(question=example["instruction"])
+        )[0]['generated_text']
+        
         test_model_prompt = JUDGE_PROMPT.format(
-            question=eval_model_input,
+            question=example["instruction"],
             answer=eval_model_output,
         )
 
@@ -72,11 +72,13 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             model='gemini-2.0-flash', contents=test_model_prompt
         )
         llm_answer = response.text
-    
-        results.append({
-            **instruction_dict,
+
+        return {
+            **example,
             "judge_score": extract_judge_score(answer=llm_answer),
-        })
+        }
+
+    results = list(tqdm(dataset.map(process_example), total=len(dataset))) 
     return results
  
 
