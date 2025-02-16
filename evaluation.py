@@ -1,9 +1,11 @@
 import os
 import re
 import dotenv
-from transformers import pipeline, Pipeline
+from transformers import pipeline, Pipeline, AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import login, InferenceClient
 from datasets import load_dataset
+import torch
+
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
 # https://huggingface.co/learn/cookbook/llm_judge
@@ -45,7 +47,7 @@ def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
         return 0
 
 
-def generate_and_stop(pipe:Pipeline, instructions: list, llm: InferenceClient) -> list:
+def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     prompt = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
     
@@ -54,6 +56,17 @@ def generate_and_stop(pipe:Pipeline, instructions: list, llm: InferenceClient) -
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
     results = []
+    llm_client = AutoModelForCausalLM.from_pretrained(
+        JUDGE_MODEL_ID,
+        load_in_4bit=True,
+        device_map="auto"
+    )
+    # llm_client = InferenceClient(
+    #     model=JUDGE_MODEL_ID,
+    #     timeout=120,
+    # )
+    tokenizer = AutoTokenizer.from_pretrained(JUDGE_MODEL_ID)
+
     for instruction_dict in instructions:
         eval_model_input = instruction_dict["instruction"]
 
@@ -65,11 +78,14 @@ def generate_and_stop(pipe:Pipeline, instructions: list, llm: InferenceClient) -
             question=eval_model_input,
             answer=eval_model_output,
         )
-
-        llm_answer = llm.text_generation(
-            prompt=test_model_prompt,
-            max_new_tokens=20,
-        )
+        input_ids = tokenizer.apply_chat_template(
+            test_model_prompt,
+            return_tensors="pt",
+        ).to("cuda")
+        
+        outputs = llm_client.generate(input_ids, max_new_tokens=20)
+        llm_answer = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
         results.append({
             **instruction_dict,
             "judge_score": extract_judge_score(answer=llm_answer),
@@ -78,19 +94,15 @@ def generate_and_stop(pipe:Pipeline, instructions: list, llm: InferenceClient) -
  
 
 if __name__ == "__main__":
-    login(token=os.getenv("HUGGINGFACE_API_KEY"))
-
-    llm_client = InferenceClient(
-        model=JUDGE_MODEL_ID,
-        timeout=120,
-    )
-    
+    login(token=os.getenv("HUGGINGFACE_API_KEY"))    
 
     pipeline = pipeline(
         task="text-generation",
         model=REPO_NAME,
         tokenizer=REPO_NAME,
-        max_length=256
+        max_length=256,
+        device_map="auto",
+        model_kwargs={"load_in_8bit": True},
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
@@ -103,7 +115,6 @@ if __name__ == "__main__":
     ans = generate_and_stop(
         pipe=pipeline,
         instructions=human_datasets,
-        llm=llm_client,
     )
 
     print(len(ans))
