@@ -2,12 +2,12 @@ import os
 import re
 import dotenv
 import pandas as pd
-from transformers import pipeline
+from transformers import pipeline, Pipeline
 from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from google import genai
 from tqdm import tqdm
-import torch
+
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
 # https://huggingface.co/learn/cookbook/llm_judge
@@ -34,58 +34,7 @@ Feedback:::
 Total rating: 
 """
 
-login(token=os.getenv("HUGGINGFACE_API_KEY"))
-llm_client = genai.Client(api_key=GEMINI_API_KEY)
-pipeline = pipeline(
-    task="text-generation",
-    model=REPO_NAME,
-    tokenizer=REPO_NAME,
-    device_map="auto",
-    max_length=512,
-    truncation=True,
-    torch_dtype=torch.bfloat16,
-    # model_kwargs={"load_in_8bit": True},
-)
-
-
 def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
-    """
-    Extracts a numerical score from a text response containing a rating.
-    
-    This function attempts to parse a numerical score from a text response,
-    specifically looking for the first number after a split string (default "Total rating:").
-    If the split string is not found, it searches for numbers in the entire text.
-    
-    Args:
-        answer (str): The text response containing the rating or score.
-            Expected to contain numerical values that can be parsed as float.
-        split_str (str, optional): The string to split the answer text on.
-            Defaults to "Total rating:". The function looks for numbers
-            after this string.
-    
-    Returns:
-        float: The extracted numerical score.
-            - Returns the first number found after the split string
-            - Returns 0 if no valid number can be extracted or if an error occurs
-    
-    Example:
-        >>> text = "The quality is good. Total rating: 8.5 out of 10"
-        >>> score = extract_judge_score(text)
-        >>> print(score)  # Output: 8.5
-        
-        >>> text = "Score is 7"
-        >>> score = extract_judge_score(text, split_str="Score is")
-        >>> print(score)  # Output: 7.0
-    
-    Notes:
-        - Uses regex pattern r"\d+(?:\.\d+)?" to match both integer and decimal numbers
-        - Silently returns 0 on any error (invalid format, no numbers found, etc.)
-        - Prints the exception message to stdout when an error occurs
-    
-    Dependencies:
-        - re (regular expressions module)
-    """
-    
     try:
         if split_str in answer:
             rating = answer.split(split_str)[1]
@@ -97,7 +46,8 @@ def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
         print(e)
         return 0
 
-def process_example(example):
+
+def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     prompt_template = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
     
@@ -105,36 +55,31 @@ def process_example(example):
     
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
-    split_str = "<|start_header_id|>assistant<|end_header_id|>"
-    eval_model_output = pipeline(
-        prompt_template.format(question=example["instruction"])
-    )[0]['generated_text'].split(split_str)[1].strip()
-        
-    test_model_prompt = JUDGE_PROMPT.format(
-        question=example["instruction"],
-        answer=eval_model_output,
-    )
-
-    response = llm_client.models.generate_content(
-        model='gemini-2.0-flash', contents=test_model_prompt
-    )
-    llm_answer = response.text
-
-    print(f"instruction_output = {example['instruction']}")
-    print(f"eval_model_output = {eval_model_output}")
-    print(f"llm_answer = {llm_answer}")
-
-    return {
-        **example,
-        "judge_score": extract_judge_score(answer=llm_answer),
-    }
-
-
-def generate_and_stop(instructions: list) -> list:
-    
+    results = []
+    llm_client = genai.Client(api_key=GEMINI_API_KEY)
     dataset = Dataset.from_list(instructions)
 
-    results = list(tqdm(dataset.map(process_example),total=len(dataset)))
+    def process_example(example):
+        eval_model_output = pipe(
+            prompt_template.format(question=example["instruction"])
+        )[0]['generated_text']
+        
+        test_model_prompt = JUDGE_PROMPT.format(
+            question=example["instruction"],
+            answer=eval_model_output,
+        )
+
+        response = llm_client.models.generate_content(
+            model='gemini-2.0-flash', contents=test_model_prompt
+        )
+        llm_answer = response.text
+
+        return {
+            **example,
+            "judge_score": extract_judge_score(answer=llm_answer),
+        }
+
+    results = list(tqdm(dataset.map(process_example), total=len(dataset))) 
     return results
 
 def calculate_average_judge_score(results):
@@ -157,9 +102,21 @@ def save_results_to_csv(results, filename="judge_scores.csv"):
     df.to_csv(filename, index=False, encoding="utf-8")  # CSV로 저장
     print(f"✅ CSV 파일 저장 완료: {filename}")
 
-# pip install flash-attn --no-build-isolation
+
 
 if __name__ == "__main__":
+    login(token=os.getenv("HUGGINGFACE_API_KEY"))    
+
+    pipeline = pipeline(
+        task="text-generation",
+        model=REPO_NAME,
+        tokenizer=REPO_NAME,
+        max_length=256,
+        device_map="auto",
+        truncation=True,
+        model_kwargs={"load_in_8bit": True},
+    )
+
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
     human_datasets = [
     dict(uuid=item["uuid"],
@@ -167,7 +124,10 @@ if __name__ == "__main__":
         response=item["response"],
     ) for item in hub_datasets["test"]]
 
-    ans = generate_and_stop(instructions=human_datasets)
+    ans = generate_and_stop(
+        pipe=pipeline,
+        instructions=human_datasets,
+    )
 
     print(len(ans))
     calculate_average_judge_score(ans)
