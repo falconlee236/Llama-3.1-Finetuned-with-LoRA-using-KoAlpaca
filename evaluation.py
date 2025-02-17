@@ -35,41 +35,24 @@ Feedback:::
 Total rating: 
 """
 
-# def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
-#     try:
-#         if split_str in answer:
-#             rating = answer.split(split_str)[1]
-#         else:
-#             rating = answer
-#         digit_groups = [el.strip() for el in re.findall(r"\d+(?:\.\d+)?", rating)]
-#         return float(digit_groups[0])
-#     except Exception as e:
-#         print(e)
-#         return 0
-
-def extract_judge_score(answers: list[str], split_str: str = "Total rating:") -> list[float]:
-    scores = []
-    
-    for answer in answers:
-        try:
-            if split_str in answer:
-                rating = answer.split(split_str)[1]
-            else:
-                rating = answer
-            digit_groups = [el.strip() for el in re.findall(r"\d+(?:\.\d+)?", rating)]
-            scores.append(float(digit_groups[0]) if digit_groups else 0)
-        except Exception as e:
-            print(f"Error processing answer: {answer}, Error: {e}")
-            scores.append(0)
-
-    return scores  # 리스트 반환
+def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
+    try:
+        if split_str in answer:
+            rating = answer.split(split_str)[1]
+        else:
+            rating = answer
+        digit_groups = [el.strip() for el in re.findall(r"\d+(?:\.\d+)?", rating)]
+        return float(digit_groups[0])
+    except Exception as e:
+        print(e)
+        return 0
 
 
 def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     prompt_template = """
     <|begin_of_text|><|start_header_id|>system<|end_header_id|>
     
-    You are a helpful assistant<|eot_id|>\n<|start_header_id|>user<|end_header_id|>
+    You are a helpful assistant and You always provide summarized answer<|eot_id|>\n<|start_header_id|>user<|end_header_id|>
     
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
@@ -149,7 +132,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
                 ],
                 model="gemma2-9b-it", # https://console.groq.com/settings/limits
                 temperature=0.5,
-                max_completion_tokens=256,
+                max_completion_tokens=128,
                 top_p=1,
                 stop=None,
             )
@@ -186,11 +169,14 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
         "judge_score": []
     }
 
+    print(f"results = {results}")
+    print(f"final_results = {final_results}")
+
     for batch in results:
-        final_results["uuid"].extend(batch["uuid"])
-        final_results["instruction"].extend(batch["instruction"])
-        final_results["response"].extend(batch["response"])
-        final_results["judge_score"].extend(batch["judge_score"])
+        final_results["uuid"].append(batch["uuid"])
+        final_results["instruction"].append(batch["instruction"])
+        final_results["response"].append(batch["response"])
+        final_results["judge_score"].apppend(batch["judge_score"])
 
     return final_results
 
@@ -247,7 +233,7 @@ if __name__ == "__main__":
         task="text-generation",
         model=REPO_NAME,
         tokenizer=REPO_NAME,
-        max_length=128,
+        max_length=256,
         device_map="auto",
         truncation=True,
         model_kwargs={"quantization_config": quantization_config}
