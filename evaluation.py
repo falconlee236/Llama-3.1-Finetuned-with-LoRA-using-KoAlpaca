@@ -5,27 +5,27 @@ import pandas as pd
 from transformers import pipeline, Pipeline, BitsAndBytesConfig
 from huggingface_hub import login
 from datasets import load_dataset, Dataset
-from google import genai
+from groq import Groq
 from tqdm import tqdm
-import torch
 
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
 # https://huggingface.co/learn/cookbook/llm_judge
 dotenv.load_dotenv()
 API_KEY = os.getenv("HUGGINGFACE_API_KEY")
-GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 REPO_NAME = os.getenv("HUGGINGFACE_REPO")
-JUDGE_PROMPT = """
+JUDGE_SYSTEM_PROMPT = """
 You will be given a user_question and system_answer couple.
 Your task is to provide a 'total rating' scoring how well the system_answer answers the user concerns expressed in the user_question.
 Give your answer as a float on a scale of 0 to 10, where 0 means that the system_answer is not helpful at all, and 10 means that the answer completely and helpfully addresses the question.
 
 Provide your feedback as follows:
 
-Feedback:::
-Total rating: (your rating, as a float between 0 and 10)
-
+Feedback (optional):::
+Total rating (nessesary): (your rating, as a float between 0 and 10)
+"""
+JUDGE_USER_PROMPT = """
 Now here are the question and answer.
 
 Question: {question}
@@ -57,7 +57,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     {question}<|eot_id|>\n<|start_header_id|>assistant<|end_header_id|>
     """
     split_str = "<|start_header_id|>assistant<|end_header_id|>"
-    llm_client = genai.Client(api_key=GEMINI_API_KEY)
+    llm_client = Groq(api_key=GROQ_API_KEY)
     dataset = Dataset.from_list(instructions)
 
     def process_example(example):
@@ -65,19 +65,33 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             prompt_template.format(question=example["instruction"])
         )[0]['generated_text'].split(split_str)[1].strip()
         
-        test_model_prompt = JUDGE_PROMPT.format(
+        test_model_prompt = JUDGE_USER_PROMPT.format(
             question=example["instruction"],
             answer=eval_model_output,
         )
 
-        response = llm_client.models.generate_content(
-            model='gemini-2.0-flash', contents=test_model_prompt
+        response = llm_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": JUDGE_SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": test_model_prompt,
+                }
+            ],
+            model="deepseek-r1-distill-llama-70b", # https://console.groq.com/settings/limits
+            temperature=0.5,
+            max_completion_tokens=256,
+            top_p=1,
+            stop=None,
         )
-        llm_answer = response.text
+        llm_answer = response.choices[0].message.content
 
-        # print(f"instruction_output = {example['instruction']}")
-        # print(f"eval_model_output = {eval_model_output}")
-        # print(f"llm_answer = {llm_answer}")
+        print(f"instruction_output = {example['instruction']}") 
+        print(f"eval_model_output = {eval_model_output}")
+        print(f"llm_answer = {llm_answer}")
 
         return {
             **example,
