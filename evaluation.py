@@ -15,6 +15,7 @@ dotenv.load_dotenv()
 API_KEY = os.getenv("HUGGINGFACE_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 REPO_NAME = os.getenv("HUGGINGFACE_REPO")
+DATA_SIZE = 1000
 JUDGE_PROMPT = """
 You will be given a user_question and system_answer couple.
 Your task is to provide a 'total rating' scoring how well the system_answer answers the user concerns expressed in the user_question.
@@ -174,16 +175,11 @@ if __name__ == "__main__":
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
-    # human_datasets = [
-    # dict(uuid=item["uuid"],
-    #     instruction=item["instruction"],
-    #     response=item["response"],
-    # ) for item in hub_datasets["test"].select(range(2))]
     human_datasets = [
     dict(uuid=item["uuid"],
         instruction=item["instruction"],
         response=item["response"],
-    ) for item in hub_datasets["test"]]
+    ) for item in hub_datasets["test"].select(range(DATA_SIZE))]
 
     ans = generate_and_stop(
         pipe=pipeline,
