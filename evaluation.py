@@ -108,6 +108,7 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
 
         """
         judge_scores = []
+        feedbacks = []
 
         for instruction in examples["instruction"]:
             eval_model_output = pipe(
@@ -144,11 +145,13 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             print(f"llm_answer = {llm_answer}")
 
             judge_scores.append(judge_score)
+            feedbacks.append(llm_answer)
 
         return {
             "uuid": examples["uuid"],
             "instruction": examples["instruction"],
             "response": examples["response"],
+            "feedback": feedbacks,
             "judge_score": judge_scores,
         }
 
@@ -166,17 +169,19 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
         "uuid": [],
         "instruction": [],
         "response": [],
-        "judge_score": []
+        "feedback": [],
+        "judge_score": [],
     }
 
     print(f"results = {results}")
-    print(f"final_results = {final_results}")
 
     for batch in results:
         final_results["uuid"].append(batch["uuid"])
         final_results["instruction"].append(batch["instruction"])
         final_results["response"].append(batch["response"])
-        final_results["judge_score"].apppend(batch["judge_score"])
+        final_results["feedback"].append(batch["feedback"])
+        final_results["judge_score"].append(batch["judge_score"])
+    print(f"final_results = {final_results}")
 
     return final_results
 
@@ -244,7 +249,7 @@ if __name__ == "__main__":
     dict(uuid=item["uuid"],
         instruction=item["instruction"],
         response=item["response"],
-    ) for item in hub_datasets["test"].select(range(8))]
+    ) for item in hub_datasets["test"].select(range(2))]
     # human_datasets = [
     # dict(uuid=item["uuid"],
     #     instruction=item["instruction"],
