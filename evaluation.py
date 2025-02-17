@@ -81,24 +81,43 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
                 question=instruction,
                 answer=eval_model_output,
             )
-
-            response = llm_client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "you are a helpful llm judge assistant.",
-                    },
-                    {
-                        "role": "user",
-                        "content": test_model_prompt,
-                    }
-                ],
-                model="gemma2-9b-it", # https://console.groq.com/settings/limits
-                temperature=0.5,
-                max_completion_tokens=128,
-                top_p=1,
-                stop=None,
-            )
+            reponse = 0
+            try:    
+                response = llm_client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "you are a helpful llm judge assistant.",
+                        },
+                        {
+                            "role": "user",
+                            "content": test_model_prompt,
+                        }
+                    ],
+                    model="gemma2-9b-it", # https://console.groq.com/settings/limits
+                    temperature=0.5,
+                    max_completion_tokens=128,
+                    top_p=1,
+                    stop=None,
+                )
+            except Exception:
+                response = llm_client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "you are a helpful llm judge assistant.",
+                        },
+                        {
+                            "role": "user",
+                            "content": test_model_prompt,
+                        }
+                    ],
+                    model="mixtral-8x7b-32768", # https://console.groq.com/settings/limits
+                    temperature=0.5,
+                    max_completion_tokens=128,
+                    top_p=1,
+                    stop=None,
+                )
             llm_answer = response.choices[0].message.content
             judge_score = extract_judge_score(answer=llm_answer)
 
