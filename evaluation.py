@@ -35,17 +35,34 @@ Feedback:::
 Total rating: 
 """
 
-def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
-    try:
-        if split_str in answer:
-            rating = answer.split(split_str)[1]
-        else:
-            rating = answer
-        digit_groups = [el.strip() for el in re.findall(r"\d+(?:\.\d+)?", rating)]
-        return float(digit_groups[0])
-    except Exception as e:
-        print(e)
-        return 0
+# def extract_judge_score(answer: str, split_str: str = "Total rating:") -> int:
+#     try:
+#         if split_str in answer:
+#             rating = answer.split(split_str)[1]
+#         else:
+#             rating = answer
+#         digit_groups = [el.strip() for el in re.findall(r"\d+(?:\.\d+)?", rating)]
+#         return float(digit_groups[0])
+#     except Exception as e:
+#         print(e)
+#         return 0
+
+def extract_judge_score(answers: list[str], split_str: str = "Total rating:") -> list[float]:
+    scores = []
+    
+    for answer in answers:
+        try:
+            if split_str in answer:
+                rating = answer.split(split_str)[1]
+            else:
+                rating = answer
+            digit_groups = [el.strip() for el in re.findall(r"\d+(?:\.\d+)?", rating)]
+            scores.append(float(digit_groups[0]) if digit_groups else 0)
+        except Exception as e:
+            print(f"Error processing answer: {answer}, Error: {e}")
+            scores.append(0)
+
+    return scores  # 리스트 반환
 
 
 def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
@@ -154,12 +171,10 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
 
     # results = list(tqdm(dataset.map(
     #     process_example,
-    #     num_proc=8,
     # ), total=len(dataset)))
     # return results
     results = list(tqdm(dataset.map(
         process_batch_example,
-        num_proc=8,
         batched=True,
         batch_size=8,
     ), total=len(dataset))) 
