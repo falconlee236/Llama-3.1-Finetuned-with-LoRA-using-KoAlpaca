@@ -7,7 +7,6 @@ from huggingface_hub import login
 from datasets import load_dataset, Dataset
 from groq import Groq
 from tqdm import tqdm
-from typing import Any
 
 
 # https://github.com/HeegyuKim/open-korean-instructions?tab=readme-ov-file 
@@ -60,44 +59,6 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
     llm_client = Groq(api_key=GROQ_API_KEY)
     dataset = Dataset.from_list(instructions)
 
-    # def process_example(example: dict[str, Any]) -> dict[str, Any]:
-    #     eval_model_output = pipe(
-    #         prompt_template.format(question=example["instruction"])
-    #     )[0]['generated_text'].split(split_str)[1].strip()
-        
-    #     test_model_prompt = JUDGE_PROMPT.format(
-    #         question=example["instruction"],
-    #         answer=eval_model_output,
-    #     )
-
-    #     response = llm_client.chat.completions.create(
-    #         messages=[
-    #             {
-    #                 "role": "system",
-    #                 "content": "you are a helpful llm judge assistant.",
-    #             },
-    #             {
-    #                 "role": "user",
-    #                 "content": test_model_prompt,
-    #             }
-    #         ],
-    #         model="gemma2-9b-it", # https://console.groq.com/settings/limits
-    #         temperature=0.5,
-    #         max_completion_tokens=256,
-    #         top_p=1,
-    #         stop=None,
-    #     )
-    #     llm_answer = response.choices[0].message.content
-
-    #     print(f"instruction_output = {example['instruction']}") 
-    #     print(f"eval_model_output = {eval_model_output}")
-    #     print(f"llm_answer = {llm_answer}")
-
-    #     return {
-    #         **example,
-    #         "judge_score": extract_judge_score(answer=llm_answer),
-    #     }
-
     def process_batch_example(examples: dict[str, list]) -> dict[str, list]:
         """
         examples = {
@@ -140,10 +101,6 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             llm_answer = response.choices[0].message.content
             judge_score = extract_judge_score(answer=llm_answer)
 
-            print(f"instruction_output = {instruction}") 
-            print(f"eval_model_output = {eval_model_output}")
-            print(f"llm_answer = {llm_answer}")
-
             judge_scores.append(judge_score)
             feedbacks.append(llm_answer)
 
@@ -155,10 +112,6 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
             "judge_score": judge_scores,
         }
 
-    # results = list(tqdm(dataset.map(
-    #     process_example,
-    # ), total=len(dataset)))
-    # return results
     results = list(tqdm(dataset.map(
         process_batch_example,
         batched=True,
@@ -173,39 +126,15 @@ def generate_and_stop(pipe:Pipeline, instructions: list) -> list:
         "judge_score": [],
     }
 
-    print(f"results = {results}")
-
     for batch in results:
         final_results["uuid"].append(batch["uuid"])
         final_results["instruction"].append(batch["instruction"])
         final_results["response"].append(batch["response"])
         final_results["feedback"].append(batch["feedback"])
         final_results["judge_score"].append(batch["judge_score"])
-    print(f"final_results = {final_results}")
 
     return final_results
 
-    
-
-# def calculate_average_judge_score(results):
-#     """
-#     judge_score의 평균을 계산하는 함수
-#     results: generate_and_stop()의 결과 리스트
-#     """
-#     scores = [item["judge_score"] for item in results]
-#     avg_score = sum(scores) / len(scores) if scores else 0
-#     print(f"Average Judge Score: {avg_score:.4f}")
-#     return avg_score
-
-# def save_results_to_csv(results, filename="judge_scores.csv"):
-#     """
-#     결과 리스트를 CSV 파일로 저장하는 함수
-#     results: generate_and_stop()의 결과 리스트
-#     filename: 저장할 CSV 파일명 (기본값: judge_scores.csv)
-#     """
-#     df = pd.DataFrame(results)  # 리스트를 DataFrame으로 변환
-#     df.to_csv(filename, index=False, encoding="utf-8")  # CSV로 저장
-#     print(f"✅ CSV 파일 저장 완료: {filename}")
 
 def calculate_average_judge_score(results):
     """
@@ -245,16 +174,16 @@ if __name__ == "__main__":
     )
 
     hub_datasets = load_dataset("HAERAE-HUB/KUDGE", "Human Annotations")
-    human_datasets = [
-    dict(uuid=item["uuid"],
-        instruction=item["instruction"],
-        response=item["response"],
-    ) for item in hub_datasets["test"].select(range(2))]
     # human_datasets = [
     # dict(uuid=item["uuid"],
     #     instruction=item["instruction"],
     #     response=item["response"],
-    # ) for item in hub_datasets["test"]]
+    # ) for item in hub_datasets["test"].select(range(2))]
+    human_datasets = [
+    dict(uuid=item["uuid"],
+        instruction=item["instruction"],
+        response=item["response"],
+    ) for item in hub_datasets["test"]]
 
     ans = generate_and_stop(
         pipe=pipeline,
